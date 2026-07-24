@@ -1,66 +1,41 @@
-## Foundry
+# PISTA Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
-Foundry consists of:
+----
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Counter.sol contract
 
-## Documentation
+`Counter.sol` is a proof-of-concept contract that demonstrates how PISTA can control on-chain activity based on off-chain decisions.
 
-https://book.getfoundry.sh/
+The contract is a simple counter with two state-mutating functions:
 
-## Usage
+- `increment()` — callable by anyone, increments the counter by 1.
+- `setNumber(uint256)` — admin-only, sets the counter to an arbitrary value.
 
-### Build
+Both functions emit a `Fired` event with the caller and the new value.
 
-```shell
-$ forge build
-```
+### Pause mechanism
 
-### Test
+The core feature is a `Paused` boolean. When true, all non-admin functions revert. This allows an external system (PISTA) to halt the contract based on conditions that are too complex, expensive, or dynamic for the EVM — such as rate limits over sliding time windows, address-based access policies, or other off-chain risk signals.
 
-```shell
-$ forge test
-```
+### Admin governance
 
-### Format
+The contract supports multiple admins via an `authorize()` function. Admins can:
 
-```shell
-$ forge fmt
-```
+- Pause and unpause the contract (`pause(bool)`)
+- Grant or revoke admin status for other addresses (`authorize(address, bool)`)
+- Force-set the counter value (`setNumber(uint256)`)
 
-### Gas Snapshots
+The deployer is automatically set as the first admin. At least one admin must always exist.
 
-```shell
-$ forge snapshot
-```
+### Events and errors
 
-### Anvil
+- `Fired(address sender, uint counter)` — emitted on counter changes.
+- `Authorized(address who, bool status, address by)` — emitted when admin status changes.
+- Reverts with `"Contract Paused"` when `increment()` is called while paused.
+- Reverts with `"Not Admin"` when a non-admin calls a restricted function.
+- Reverts with `"Need 1 admin"` when trying to remove the last admin.
 
-```shell
-$ anvil
-```
+### Test coverage
 
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+Tests cover admin setup, authorization, increment, fuzz-based setNumber, pause/unpause, and the key scenario: verifying that `increment()` reverts during a pause and resumes after unpause.
