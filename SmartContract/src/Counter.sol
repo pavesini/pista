@@ -1,6 +1,29 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+/**
+    Counter contract
+    This contract is a dummy contract aimed at showcasing PISTA
+    The scenario is that of a smart contract that needs to process
+    up to a certain amount of `increment` and `setNumber` transactions
+    depending on external conditions.
+    Those conditions are external to the contract like
+    - allow up to X transactions over a period of time Y
+    - the amount of transactions X might vary over time
+    - the time frame Y might vary
+    - some addresses might be allowed to increment or
+    - ... other complex conditions
+
+    The key point is that those conditions:
+    - are external to the contract
+    - are too complicated or expensive for the EVM
+    - change over time
+    - are subject to parameters external to the contract
+
+    So "something else" must make a decision on when to stop the
+    contract and prevent it from processing other transactions
+    until unpaused
+ */
 contract Counter {
     
     /****************************************************************
@@ -41,7 +64,7 @@ contract Counter {
         Prevents the modified function from running during pause
      */
     modifier onlyIfNotPaused() {
-        require (Paused == false, "Contract Puased");
+        require (Paused == false, "Contract Paused");
         _;
     }
 
