@@ -39,3 +39,17 @@ The deployer is automatically set as the first admin. At least one admin must al
 ### Test coverage
 
 Tests cover admin setup, authorization, increment, fuzz-based setNumber, pause/unpause, and the key scenario: verifying that `increment()` reverts during a pause and resumes after unpause.
+
+
+### Deploy
+
+|Data | Value|
+|----|-----|
+|Network | Ethereum Sepolia |
+|Deployer address |  0xd6d5e7b2c47399853f6c988eb60f862a6cb26f7d| 
+|1st admin | 0xd6d5e7b2c47399853f6c988eb60f862a6cb26f7d |
+|Deploy txh | 0xb2caf6a7f67b5232ed0abc5e0297154bd76c48ad6c188b599ed968fb7db99960|
+|Contract address | 0x6A1fa9938e2698EA4009E3821CbeF215620f2003|
+|Explorer 1 | https://repo.sourcify.dev/11155111/0x6A1fa9938e2698EA4009E3821CbeF215620f2003
+|Explorer 2 | https://eth-sepolia.blockscout.com/address/0x6A1fa9938e2698EA4009E3821CbeF215620f2003?tab=contract|
+
