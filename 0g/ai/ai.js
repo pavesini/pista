@@ -2,6 +2,9 @@ import "dotenv/config";
 import OpenAI from "openai";
 
 export async function getFraudDetectionResponse(transactions) {
+    const demoFraudProbability = parseFloat(process.env.DEMO_FRAUD_PROBABILITY) || 0.3;
+    const simulatedFraudDetected = Math.random() < demoFraudProbability;
+
     const prompt = `
         Act as an AML and fraud detection agent.
 
@@ -16,15 +19,17 @@ export async function getFraudDetectionResponse(transactions) {
 
         {
             "results": [
-            {
-                "transaction_ids": ["string"],
-                "level": "low",
-                "explanation": "two or three words",
-            }
+                {
+                    "transaction_ids": ["string"],
+                    "level": "low",
+                    "explanation": "two or three words",
+                    "attestation": "potential_fraud"
+                }
             ]
         }
 
         Rules:
+        - if simulatedFraudDetcted is true, return at least one suspicious transaction; otherwise, return the correct result
         - "transaction_ids" must contain the suspicious transaction IDs.
         - "level" must be exactly one of: "low", "medium", "high".
         - "explanation" must contain exactly two or three words.
@@ -36,8 +41,9 @@ export async function getFraudDetectionResponse(transactions) {
         - If no suspicious activity is detected, return:
             { "results": [] }
 
+        simulatedFraudDetected: ${simulatedFraudDetected}
         Transactions:
-        ${JSON.stringify(transactions, null, 2)}
+            ${JSON.stringify(transactions, null, 2)}
         `;
 
     const client = new OpenAI({
@@ -61,12 +67,12 @@ export async function getFraudDetectionResponse(transactions) {
     }
 
 
-    const parsedResponse = parseResponse(response) 
+    const parsedResponse = parseResponse(response, transactions); 
     return parsedResponse;
 }
 
 
-function parseResponse(response) {
+function parseResponse(response, transactions) {
   const content = response.choices[0].message.content;
 
   const cleanedContent = content
@@ -81,8 +87,11 @@ function parseResponse(response) {
     throw new Error("Invalid fraud detection response format");
   }
 
+  const lastBlockNumber = transactions[0]?.block_number ?? null;
+
   return {
     results: parsed.results,
     tee_verified: response.x_0g_trace?.tee_verified ?? false,
+    last_block_number: lastBlockNumber,
   };
 }

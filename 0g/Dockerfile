@@ -13,4 +13,4 @@ RUN npm ci --omit=dev
 COPY . .
 RUN chmod +x pause_tx.sh
 
-CMD ["sh", "-c", "while true; do node index.js; sleep 5; done"]
+CMD ["sh", "-c", "while true; do node index.js; sleep 10; done"]
