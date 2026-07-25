@@ -26,12 +26,16 @@ ClickHouse via `substreams-sink-sql`'.
 - The local dev chain **and** ClickHouse running: `docker compose up -d` (from this directory)
 
 ## Quick Start
+Run the stream in the local environment (docker containers) point the Sepolina network and write
+the aggregates on the local Clickhouse instance.
 
 ```bash
 substreams build
 
 docker compose up -d
 docker compose ps   # wait until ethereum-dev-node AND clickhouse show "healthy"
+
+export SUBSTREAMS_API_KEY=<Substream apy key> # add the substream api key
 
 # One-time: create the fraud_data table (DDL is generated from proto/aggregate.proto's
 # schema.table / clickhouse_table_options annotations).
@@ -43,6 +47,7 @@ substreams-sink-sql from-proto \
 ```
 
 ## Deploy
+Deploy the substream
 
 ```bash
  substreams publish pista-wallet-transactions-sepolia-v0.1.1.spkg
