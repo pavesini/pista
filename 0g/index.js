@@ -14,7 +14,7 @@ async function main() {
     }
 
     const fraudDetectionResponse = await getFraudDetectionResponse(transactions);
-
+    console.log(`🧱 Last block number: ${fraudDetectionResponse.last_block_number}`);
     if (!fraudDetectionResponse.results.length) {
       console.log("✅ No possible frauds detected");
     } else {

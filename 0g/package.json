@@ -5,7 +5,11 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "poll": "node index.js"
+    "poll": "node index.js",
+    "docker-build": "docker build -t 0g-aml .",
+    "docker-run": "docker run --env-file .env --name 0g-aml 0g-aml",
+    "docker-stop": "docker stop 0g-aml && docker rm 0g-aml",
+    "docker-rebuild": "docker rm 0g-aml && docker build -t 0g-aml ."
   },
   "author": "Conio",
   "license": "ISC",
