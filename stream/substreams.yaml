@@ -1,6 +1,6 @@
 specVersion: v0.1.0
 package:
-  name: pista_wallet_transactions
+  name: pista_wallet_transactions_sepolia
   version: v0.1.0
   url: https://github.com/pavesini/pista
   description: Map Eth Blocks into per-block FraudData aggregates
