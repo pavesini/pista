@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package pista.aggregate.v1;
+
+import "sf/substreams/sink/sql/schema/v1/schema.proto";
+
+message FraudData {
+  option (schema.table) = {
+    name: "fraud_data"
+    clickhouse_table_options: {
+      order_by_fields: [{ name: "block_number" }]
+    }
+  };
+
+  uint64 block_number                      = 1 [(schema.field) = { primary_key: true }];
+  uint64 block_timestamp                   = 2;
+  int32  block_interval_seconds            = 3;
+  double gas_utilization                   = 4;
+
+  uint64 total_transactions                = 5;
+  uint64 unique_senders                    = 6;
+  uint64 unique_receivers                  = 7;
+
+  string total_value_wei                   = 8;
+  uint64 zero_value_tx_count               = 9;
+  uint64 dust_tx_count                     = 10;
+  double stablecoin_volume_usd             = 11;
+
+  uint64 failed_transactions               = 12;
+  string top_reverting_contract            = 13;
+  uint64 top_reverting_distinct_senders    = 14;
+
+  double priority_fee_p50_gwei             = 15;
+  double priority_fee_max_gwei             = 16;
+
+  uint64 contract_creation_count           = 17;
+  uint64 duplicate_bytecode_creation_count = 18;
+  uint64 delegation_tx_count               = 19;
+}

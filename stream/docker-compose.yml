@@ -1,0 +1,98 @@
+services:
+  ethereum-node:
+    image: ghcr.io/streamingfast/go-ethereum:geth-v1.16.7-fh3.0
+    container_name: ethereum-dev-node
+    entrypoint: ["/app/fireeth"]
+    command:
+      - start
+      - reader-node,relayer,merger,firehose,substreams-tier1,substreams-tier2
+      - --config-file=
+      - --log-format=text
+      - --log-to-file=false
+      - --data-dir=/data
+      - --advertise-block-id-encoding=hex
+      - --advertise-chain-name=local-ethereum
+      - --common-first-streamable-block=0
+      - --reader-node-path=geth
+      - --reader-node-arguments=--dev --dev.period=1 --vmtrace=firehose --http --http.addr=0.0.0.0 --http.port=8545 --http.api=eth,net,web3,debug,txpool --datadir=/data/geth
+      - --firehose-grpc-listen-addr=:8089
+      - --substreams-tier1-grpc-listen-addr=:9000
+      - --substreams-tier1-block-type=sf.ethereum.type.v2.Block
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+      - "8089:8089"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8545", "-X", "POST", "-H", "Content-Type: application/json", "-d", '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - ethereum_data:/data
+    networks:
+      - ethereum_network
+
+  fund-address:
+    image: ghcr.io/streamingfast/go-ethereum:geth-v1.16.7-fh3.0
+    volumes:
+      - ethereum_data:/data
+    entrypoint: ["geth"]
+    command:
+      - attach
+      - --datadir=/data/geth
+      - '--exec=[
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+        "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+        "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+        "0x976ea74026e726554db657fa54763abd0c3a0aa9",
+        "0x14dc79964da2c08b23698b3d3cc7ca32193d9955",
+        "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f",
+        "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
+        ].forEach(to =>
+        eth.sendTransaction({from: eth.accounts[0], to, value: web3.toWei(10000, "ether")})
+        );'
+    restart: on-failure
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 2s
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: fraud-data-clickhouse
+    environment:
+      # Without a password, the image's entrypoint disables network access
+      # for the 'default' user entirely (local-dev-only "secure by default"
+      # behavior) — connections from outside the container, including via
+      # the published port below, would otherwise hang/be rejected.
+      CLICKHOUSE_PASSWORD: dev
+    ports:
+      # Host 19000 -> container's native TCP 9000. Host 9000 is already taken
+      # by the substreams tier1 gRPC listener above, and the more common
+      # ClickHouse dev port 9001 collides with other services on a shared
+      # dev machine — 19000 is a deliberately uncommon choice. HTTP (8123)
+      # isn't needed by the sink (native TCP only) so it's not published.
+      - "19000:9000"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--password", "dev", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - ethereum_network
+
+volumes:
+  ethereum_data:
+  clickhouse_data:
+
+networks:
+  ethereum_network:
+    driver: bridge
