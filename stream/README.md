@@ -1,20 +1,28 @@
 # pista_wallet_transactions
 
-Filters Ethereum transactions where `tx.from` matches a runtime-provided address.
+Aggregates each Ethereum block into a `FraudData` row of fraud-relevant signals
+(gas utilization, failed/reverted-tx patterns, dust and stablecoin volume,
+priority fees, contract-creation/delegation activity, etc.) and streams it into
+ClickHouse.
 
 ## Overview
 
-A single Substreams map module that scans each block's transactions and emits the
-ones whose `from` field equals an address passed in at run time via a module
-param. Built against the local Firehose/Substreams dev chain started by
-`docker-compose.yml` in this repo (`geth --dev`, tier1 gRPC on `localhost:9000`).
-No sink is wired up yet — output is written to a local file via `substreams run`.
+A Substreams pipeline with two modules: a small `store` module that tracks the
+previous block's timestamp (needed to compute the interval between blocks),
+and a `map` module that scans every transaction in the block and emits one
+`pista.aggregate.v1.FraudData` row per block. Built against the local
+Firehose/Substreams dev chain started by `docker-compose.yml` in this repo
+(`geth --dev`, tier1 gRPC on `localhost:9000`). Output is persisted to
+ClickHouse via `substreams-sink-sql`'s `from-proto` mode — no `schema.sql` to
+maintain, the table DDL is generated from the annotations in
+`proto/aggregate.proto`.
 
 ## Modules
 
 | Module | Kind | Output | Description |
 |---|---|---|---|
-| `map_transactions_from` | map | `pista.transactions.v1.Transactions` | Emits every transaction where `tx.from` == the address passed via `-p` |
+| `store_block_interval` | store | `int64` | Tracks the current block's timestamp so the next block can compute the gap between them |
+| `extract_fraud_relevant_data` | map | `pista.aggregate.v1.FraudData` | Emits one fraud-signal aggregate row per block |
 
 ## Prerequisites
 
@@ -24,36 +32,43 @@ No sink is wired up yet — output is written to a local file via `substreams ru
   supports `zstd`/`gzip` and rejects the request outright
   (`rpc error: ... unknown compression "s2"`). v1.17.11 predates that change and
   works against this stack.
+- `substreams-sink-sql` — **use v4.11.3, not v4.13.x/latest.** Same root
+  cause as the CLI note above: `substreams-sink-sql` releases from
+  v4.12.0/Feb 2026 onward hit the same `unknown compression "s2"` error
+  against this stack's `fh3.0` firehose/tier1 build. v4.11.3
+  (https://github.com/streamingfast/substreams-sink-sql/releases/tag/v4.11.3)
+  predates that change and was used for this repo's smoke test; from-proto
+  mode itself is unaffected by the version difference.
 - `buf`
 - Rust with the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`)
-- The local dev chain running: `docker compose up -d` (from this directory)
+- The local dev chain **and** ClickHouse running: `docker compose up -d` (from this directory)
 
 ## Quick Start
 
 ```bash
 substreams build
 
-# Find the dev node's sender account (fund-address sends FROM this account):
-curl -s -X POST -H "Content-Type: application/json" \
-  --data '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1}' \
-  http://localhost:8545
+docker compose up -d
+docker compose ps   # wait until ethereum-dev-node AND clickhouse show "healthy"
 
-substreams run substreams.yaml map_transactions_from \
+# One-time: create the fraud_data table (DDL is generated from proto/aggregate.proto's
+# schema.table / clickhouse_table_options annotations).
+substreams-sink-sql from-proto \
+  "clickhouse://default:dev@localhost:19000/default" \
+  ./substreams.yaml extract_fraud_relevant_data \
   -e localhost:9000 --plaintext \
-  -p map_transactions_from=<ADDRESS> \
-  -s 0 -t +50 \
-  -o jsonl > wallet_transactions.jsonl
+  -s 0 -t +50
 ```
 
 ## Running the smoke test end-to-end
 
-These are the exact steps used to verify the module against the local dev chain.
+These are the exact steps used to verify the pipeline against the local dev chain.
 
-1. **Bring up the local Firehose/Substreams stack** (from this directory):
+1. **Bring up the local Firehose/Substreams stack and ClickHouse** (from this directory):
 
    ```bash
    docker compose up -d
-   docker compose ps   # wait until ethereum-dev-node shows "healthy"
+   docker compose ps   # wait until ethereum-dev-node and clickhouse show "healthy"
    ```
 
 2. **Confirm `fund-address` ran.** It sends 10000 ETH from the dev node's
@@ -67,44 +82,64 @@ These are the exact steps used to verify the module against the local dev chain.
    # -> "exited 0" once it has succeeded
    ```
 
-3. **Get the dev node's sender address** — this is the `from` you filter on,
-   *not* one of the 10 hardcoded recipients:
+   Those funding transactions are what give the smoke test some non-trivial
+   `total_transactions` / `total_value_wei` / `unique_receivers` to check.
 
-   ```bash
-   curl -s -X POST -H "Content-Type: application/json" \
-     --data '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1}' \
-     http://localhost:8545
-   ```
-
-4. **Build and run**, writing matches to a file:
+3. **Build and run the sink**, against a short range so the test finishes fast:
 
    ```bash
    substreams build
 
-   substreams run substreams.yaml map_transactions_from \
+   substreams-sink-sql from-proto \
+     "clickhouse://default:dev@localhost:19000/default" \
+     ./substreams.yaml extract_fraud_relevant_data \
      -e localhost:9000 --plaintext \
-     -p map_transactions_from=<ADDRESS_FROM_STEP_3> \
-     -s 0 -t +400 \
-     -o jsonl > wallet_transactions.jsonl
+     -s 0 -t +50 \
+     --block-batch-size=1
    ```
 
-5. **Verify the output** — expect one JSON line per block containing a match,
-   each with 10000 ETH (`10000000000000000000000` wei) transfers from the dev
-   account to each of the 10 recipients:
+   `--block-batch-size=1` forces a flush after every block — the default (25)
+   won't flush at all over a 50-block smoke range.
+
+4. **Verify the output** — one row per block, e.g.:
 
    ```bash
-   cat wallet_transactions.jsonl | jq .
+   docker compose exec clickhouse clickhouse-client --password dev --query \
+     "SELECT block_number, total_transactions, unique_receivers, total_value_wei, contract_creation_count FROM fraud_data ORDER BY block_number LIMIT 10 FORMAT PrettyCompact"
    ```
 
-   Sanity-check a specific recipient's on-chain balance matches what the file
-   shows (30000 ETH after 3 `fund-address` runs, in this case):
+   Expect `total_transactions`/`unique_receivers` to jump on the block(s)
+   containing the `fund-address` transfers (10 recipients, one `fund-address`
+   run per `docker compose up`), and `block_interval_seconds` to read `0` on
+   the very first row and ~1s afterward (the dev chain mines with
+   `--dev.period=1`).
 
-   ```bash
-   curl -s -X POST -H "Content-Type: application/json" \
-     --data '{"jsonrpc":"2.0","method":"eth_getBalance","params":["0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","latest"],"id":1}' \
-     http://localhost:8545
-   ```
+5. **Tear down** when done: `docker compose down` (add `-v` to also wipe the
+   dev chain's state and the ClickHouse data volume, so the next run starts
+   fresh).
 
-6. **Tear down** when done: `docker compose down` (add `-v` to also wipe the
-   dev chain's state so the next `fund-address` run starts from a fresh
-   funding round).
+## Notes on the aggregate fields
+
+A few fields encode assumptions worth knowing about if the numbers look
+surprising:
+
+- **`dust_tx_count`** — non-zero transfers under `0.0001 ETH` (a hardcoded
+  threshold in `src/lib.rs`).
+- **`stablecoin_volume_usd`** — sums ERC-20 `Transfer` events from a small
+  hardcoded allowlist of **Sepolia testnet** stablecoins (Circle's official
+  Sepolia USDC and a common Sepolia faucet DAI), assuming 1 token ≈ 1 USD.
+  Against the local dev chain (no such contracts deployed) this reads `0` —
+  it's only meaningful once the pipeline runs against Sepolia itself (see
+  the root README's "Running against a real testnet" section).
+- **`top_reverting_contract`** / **`top_reverting_distinct_senders`** — among
+  failed/reverted transactions in the block, the `to` address with the most
+  *distinct* senders; ties go to whichever address appears first in the
+  block's transaction order.
+- **`duplicate_bytecode_creation_count`** — count of contract-creation
+  transactions in the block whose init code matches at least one other
+  creation transaction's init code in the same block.
+- **`priority_fee_p50_gwei`** / **`priority_fee_max_gwei`** — derived from
+  each transaction's effective `gas_price` minus the block's
+  `base_fee_per_gas` (clamped at 0), which is how Firehose/Substreams reports
+  the price actually paid regardless of transaction type — median and max
+  across the block's transactions.

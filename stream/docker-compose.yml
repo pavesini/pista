@@ -62,8 +62,36 @@ services:
         condition: on-failure
         delay: 2s
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: fraud-data-clickhouse
+    environment:
+      # Without a password, the image's entrypoint disables network access
+      # for the 'default' user entirely (local-dev-only "secure by default"
+      # behavior) — connections from outside the container, including via
+      # the published port below, would otherwise hang/be rejected.
+      CLICKHOUSE_PASSWORD: dev
+    ports:
+      # Host 19000 -> container's native TCP 9000. Host 9000 is already taken
+      # by the substreams tier1 gRPC listener above, and the more common
+      # ClickHouse dev port 9001 collides with other services on a shared
+      # dev machine — 19000 is a deliberately uncommon choice. HTTP (8123)
+      # isn't needed by the sink (native TCP only) so it's not published.
+      - "19000:9000"
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--password", "dev", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - ethereum_network
+
 volumes:
   ethereum_data:
+  clickhouse_data:
 
 networks:
   ethereum_network:

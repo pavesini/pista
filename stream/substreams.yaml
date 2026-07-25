@@ -3,15 +3,20 @@ package:
   name: pista_wallet_transactions
   version: v0.1.0
   url: https://github.com/pavesini/pista
-  description: Map Eth Blocks and Transactions
+  description: Map Eth Blocks into per-block FraudData aggregates
 
-network: testnet
+network: sepolia
 
 protobuf:
   files:
-    - transactions.proto
+    - aggregate.proto
   importPaths:
     - ./proto
+  excludePaths:
+    - google
+    - sf/substreams
+  descriptorSets:
+    - module: buf.build/streamingfast/substreams-sink-sql
 
 binaries:
   default:
@@ -19,11 +24,26 @@ binaries:
     file: ./target/wasm32-unknown-unknown/release/pista_wallet_transactions.wasm
 
 modules:
+  - name: store_block_interval
+    kind: store
+    initialBlock: 0
+    updatePolicy: set
+    valueType: int64
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+
   - name: extract_fraud_relevant_data
     kind: map
     initialBlock: 0
     inputs:
-      - params: string
       - source: sf.ethereum.type.v2.Block
+      - store: store_block_interval
+        mode: deltas
     output:
-      type: proto:pista.transactions.v1.Transactions
+      type: proto:pista.aggregate.v1.FraudData
+
+sink:
+  module: extract_fraud_relevant_data
+  type: sf.substreams.sink.sql.service.v1.Service
+  config:
+    engine: clickhouse

@@ -2,8 +2,17 @@ syntax = "proto3";
 
 package pista.aggregate.v1;
 
+import "sf/substreams/sink/sql/schema/v1/schema.proto";
+
 message FraudData {
-  uint64 block_number                      = 1;
+  option (schema.table) = {
+    name: "fraud_data"
+    clickhouse_table_options: {
+      order_by_fields: [{ name: "block_number" }]
+    }
+  };
+
+  uint64 block_number                      = 1 [(schema.field) = { primary_key: true }];
   uint64 block_timestamp                   = 2;
   int32  block_interval_seconds            = 3;
   double gas_utilization                   = 4;

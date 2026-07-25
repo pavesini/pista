@@ -25,7 +25,6 @@ PISTA subscribes to smart contract events across any number of protocols, feeds 
 
 
 
-
 ---
 
 ## Further documentation
@@ -36,55 +35,43 @@ See [dedicated README.md](SmartContract/README.md)
 
 
 
-
 # Preventive Investigation System for Transaction Auditing
 
 ## Repository layout
 
 ```
 pista/
-  stream/     Substreams package: filters Ethereum transactions where
-              tx.from == a given address, against a local Firehose dev chain
-  zg-sink/    Go sink: consumes the substream's output and batches it into
-              0G Storage (decentralized storage network)
+  stream/     Substreams package: aggregates each Ethereum block into a
+              FraudData row of fraud-relevant signals, against a local
+              Firehose dev chain
 ```
 
 ## End-to-end flow
 
 ```
-docker-compose (local geth --dev + Firehose/Substreams tier1)
+docker-compose (local geth --dev + Firehose/Substreams tier1 + ClickHouse)
         │  Ethereum blocks
         ▼
-substreams run  (stream/, module: map_transactions_from)
-        │  jsonl, one line per block with matches
+substreams-sink-sql from-proto  (stream/, module: extract_fraud_relevant_data)
+        │  one FraudData row per block
         ▼
-zg-sink  (zg-sink/)
-        │  batched KV writes (N records or T seconds, whichever first)
-        ▼
-0G Storage (Galileo testnet, KV store)
+ClickHouse (fraud_data table)
 ```
 
-Full detail on each stage lives in `stream/README.md` and `zg-sink/README.md`.
-What follows is the complete run sequence, start to finish.
+Full detail on the module lives in `stream/README.md`. What follows is the
+complete run sequence, start to finish.
 
-### 1. Bring up the local dev chain
+### 1. Bring up the local dev chain and ClickHouse
 
 ```bash
 cd stream
 docker compose up -d
-docker compose ps   # wait until ethereum-dev-node shows "healthy"
+docker compose ps   # wait until ethereum-dev-node AND clickhouse show "healthy"
 ```
 
 `fund-address` runs automatically once the node is up, sending 10000 ETH from
-the node's auto-unlocked dev account to 10 well-known Hardhat/Anvil addresses.
-
-Get the dev account's address (this is the `from` you'll filter on):
-
-```bash
-curl -s -X POST -H "Content-Type: application/json" \
-  --data '{"jsonrpc":"2.0","method":"eth_accounts","params":[],"id":1}' \
-  http://localhost:8545
-```
+the node's auto-unlocked dev account to 10 well-known Hardhat/Anvil addresses
+— useful for giving the smoke test some non-trivial transactions to see.
 
 ### 2. Build the substream
 
@@ -93,73 +80,73 @@ curl -s -X POST -H "Content-Type: application/json" \
 substreams build   # use v1.17.11 of the substreams CLI — see stream/README.md
 ```
 
-### 3. Build the 0G sink
+### 3. Get the `substreams-sink-sql` CLI
+
+**Use v4.11.3, not latest** — same `s2` gRPC compression issue as the
+`substreams` CLI note in `stream/README.md`; releases from v4.12.0 onward
+don't work against this stack's local Firehose build.
 
 ```bash
-cd ../zg-sink
-go build -o zg-sink .
-cd ..
+# download the v4.11.3 release binary directly:
+# https://github.com/streamingfast/substreams-sink-sql/releases/tag/v4.11.3
 ```
 
-### 4. Get a funded 0G testnet account
-
-1. Generate or reuse an EVM-compatible private key.
-2. Fund it at https://faucet.0g.ai (0.1 0G/day per wallet).
-3. Pick any 32-byte hex value as your `ZG_STREAM_ID` tag (no on-chain
-   registration needed — it's just a label used to group/replay KV entries).
-
-### 5. Run the full pipeline
+### 4. Run the full pipeline
 
 ```bash
-export ZG_PRIVATE_KEY=<your testnet private key>
-export ZG_STREAM_ID=<your chosen 32-byte hex tag>
-
-cd stream
-substreams run substreams.yaml map_transactions_from \
+# still in stream/
+substreams-sink-sql from-proto \
+  "clickhouse://default:dev@localhost:19000/default" \
+  ./substreams.yaml extract_fraud_relevant_data \
   -e localhost:9000 --plaintext \
-  -p map_transactions_from=<ADDRESS_FROM_STEP_1> \
-  -s 0 \
-  -o jsonl | ../zg-sink/zg-sink
+  -s 0
 ```
 
-This tails continuously (no `-t` stop-block): every matched transaction
-substreams emits gets buffered by `zg-sink` and flushed to 0G Storage once
-`ZG_BATCH_SIZE` records accumulate (default 10) or `ZG_BATCH_INTERVAL` elapses
-(default 30s), whichever comes first — see "Why batched, not one write per
-transaction" in `zg-sink/README.md` for why a literal one-write-per-tx model
-isn't viable on 0G.
+This tails continuously (no `-t` stop-block): every block substreams
+processes gets mapped to a `FraudData` row and inserted into ClickHouse's
+`fraud_data` table, batched (25 blocks by default — pass
+`--block-batch-size=1` on a short smoke-test range so rows appear
+immediately).
 
-### 6. Verify
+### 5. Verify
 
-- `zg-sink` logs each successful flush with the 0G transaction hash:
-  `flushed 10 transactions to 0G Storage, tx=0x...`
-- Check it on the Storage Explorer: https://storagescan-galileo.0g.ai
-- Read a specific record back with the `0g-storage-client` CLI's `kv-read`
-  against the same `ZG_STREAM_ID` and a known tx hash as the key.
+```bash
+docker compose exec clickhouse clickhouse-client --password dev --query \
+  "SELECT block_number, total_transactions, contract_creation_count, block_interval_seconds FROM fraud_data ORDER BY block_number DESC LIMIT 10 FORMAT PrettyCompact"
+```
 
 ### Tear down
 
 ```bash
 cd stream
-docker compose down   # add -v to also wipe dev-chain state
+docker compose down   # add -v to also wipe dev-chain state and ClickHouse data
 ```
 
 ## Status
 
-- Substreams module: built and smoke-tested against the local dev chain
-  (see `stream/README.md`).
-- 0G sink: built and verified against the real 0G testnet indexer/RPC up to
-  the transaction-submission step (confirmed with an unfunded key — reached
-  "insufficient funds", proving everything upstream of signing works).
-  End-to-end write-and-read-back with a funded key is the one remaining step.
+- Substreams module: computes the full `FraudData` aggregate (gas
+  utilization, failed/reverted-tx and dust/stablecoin signals, priority
+  fees, contract-creation/delegation activity) per block and has been
+  smoke-tested against the local dev chain (see `stream/README.md`).
+- ClickHouse sink: wired up via `substreams-sink-sql`'s `from-proto` mode —
+  table DDL is generated straight from the `schema.table` /
+  `clickhouse_table_options` annotations in `stream/proto/aggregate.proto`,
+  no hand-written `schema.sql`.
 
 ## Running against a real testnet (Sepolia) instead of the local dev chain
 
 Everything above runs against the local `docker-compose` Firehose stack. This
-section covers the alternative: deploying your own contract to **Ethereum
-Sepolia** and pointing the same substream + 0G sink at it via a hosted
-Substreams endpoint. You do **not** need `docker compose` for this flow — it
-replaces the local Firehose node entirely.
+section covers the alternative: pointing the same substream + ClickHouse
+sink at real Ethereum **Sepolia** via a hosted Substreams endpoint. You do
+**not** need `docker compose`'s `ethereum-dev-node` for this flow (you can
+still use its `clickhouse` service, or run ClickHouse separately) — a hosted
+endpoint replaces the local Firehose node entirely.
+
+This is also the network the aggregate's `stablecoin_volume_usd` field is
+tuned for — `stream/src/lib.rs`'s stablecoin allowlist uses Sepolia
+contract addresses (Circle's official Sepolia USDC and a Sepolia faucet
+DAI), so that field only ever reads non-zero data when running against
+Sepolia, not the local dev chain.
 
 ### Why a hosted endpoint, not your own Firehose node
 
@@ -176,74 +163,36 @@ already has Sepolia fully indexed.
    substreams auth   # interactive login, stores the token locally
    ```
    or `export SUBSTREAMS_API_KEY=<key>`.
-2. **A Sepolia RPC endpoint** for deploying your contract — e.g. from
-   Infura, Alchemy, or a public Sepolia RPC.
-3. **Sepolia testnet ETH** for the deployer account — e.g. from
+2. **A Sepolia RPC endpoint**, if you want to generate your own traffic to
+   watch — e.g. from Infura, Alchemy, or a public Sepolia RPC.
+3. **Sepolia testnet ETH** for that account — e.g. from
    https://sepoliafaucet.com or your RPC provider's own faucet.
-4. **Foundry** (for the example deployment) — https://getfoundry.sh:
-   ```bash
-   curl -L https://foundry.paradigm.xyz | bash
-   foundryup
-   ```
-   Any other deployment tool (Hardhat, Remix) works the same way — you just
-   need the deployer's address at the end.
+4. **A running ClickHouse instance** — either `docker compose up -d
+   clickhouse` from `stream/` (no need for `ethereum-dev-node` in this flow),
+   or your own.
 
-### 1. Deploy an example contract to Sepolia
-
-```bash
-forge init example-contract
-cd example-contract
-
-forge create --rpc-url $SEPOLIA_RPC_URL --private-key $DEPLOYER_PRIVATE_KEY \
-  --broadcast src/Counter.sol:Counter
-```
-
-(`forge init` scaffolds a trivial `Counter.sol` by default — fine for this
-purpose, since we're tracking the *deployer's* transactions, not the
-contract's logic.)
-
-Note the output: **deployer address**, **deployed contract address**, and
-**block number** of the deployment transaction.
-
-**Important caveat carried over from earlier design decisions:** our
-`map_transactions_from` module filters on `tx.from` — the transaction
-*sender*. A contract address can never be a `from` (only an EOA signs
-transactions), so track the **deployer's EOA address**, not the contract
-address, to see the deployment transaction and anything else that account
-sends. Tracking activity *into* the contract, or the contract's own internal
-calls, would need a different filter (`to` matching, or trace decoding) —
-not what's built here.
-
-### 2. Run the substream against Sepolia
+### 1. Run the substream against Sepolia
 
 ```bash
 cd stream
 
-substreams run substreams.yaml map_transactions_from \
+substreams-sink-sql from-proto \
+  "clickhouse://default:dev@localhost:19000/default" \
+  ./substreams.yaml extract_fraud_relevant_data \
   -e sepolia --network sepolia \
-  -p map_transactions_from=<DEPLOYER_EOA_ADDRESS> \
-  -s <BLOCK_NUMBER_FROM_STEP_1> \
-  -o jsonl | ../zg-sink/zg-sink
+  -s <RECENT_BLOCK_NUMBER>
 ```
 
 Notes:
 - `-e sepolia --network sepolia` resolves to The Graph's hosted Sepolia
-  endpoint and uses Sepolia's `initialBlock`/param resolution — no edits to
-  `substreams.yaml` needed (it still says `network: mainnet`, which is only a
-  placeholder; `--network` overrides it at run time).
-- **Set `-s` at or just before the deployment block**, not `0` — Sepolia is a
-  real chain with millions of blocks; starting from genesis forces a full
-  historical scan instead of picking up from where your contract exists.
+  endpoint (requires the auth from step 1 above).
+- **Set `-s` to a recent block**, not `0` — Sepolia is a real chain with
+  millions of blocks; starting from genesis forces a full historical scan.
 - If you hit `rpc error: ... unknown compression "s2"` (the same issue
   documented in `stream/README.md` for the local dev chain), it's specific to
   that old local Firehose build and shouldn't occur against The Graph's
   hosted endpoints — but if it does, swap to the `substreams-1.20.2` binary
   installed alongside the pinned `v1.17.11` one.
-
-### 3. 0G sink side — unchanged
-
-`zg-sink` doesn't care whether the jsonl came from the local dev chain or
-Sepolia — same `ZG_PRIVATE_KEY`/`ZG_STREAM_ID` setup as above.
 
 ### Summary of what's different vs. the local dev flow
 
@@ -252,6 +201,6 @@ Sepolia — same `ZG_PRIVATE_KEY`/`ZG_STREAM_ID` setup as above.
 | Chain source | `docker compose` local Firehose | The Graph hosted Substreams endpoint |
 | Auth | none (`--plaintext`, local) | `SUBSTREAMS_API_KEY` / `substreams auth` |
 | Endpoint flag | `-e localhost:9000 --plaintext` | `-e sepolia --network sepolia` |
-| Start block | `0` (tiny dev chain) | at/near your deployment block |
-| Tracked address | one of the 10 `fund-address` recipients, or the dev account | your own deployer EOA |
-| 0G sink | identical | identical |
+| Start block | `0` (tiny dev chain) | a recent block, not genesis |
+| `stablecoin_volume_usd` | always `0` (no stablecoins deployed) | non-zero when the allowlisted contracts see `Transfer` activity |
+| ClickHouse sink | identical | identical |
