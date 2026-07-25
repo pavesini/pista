@@ -1,5 +1,6 @@
 import "dotenv/config";
 import OpenAI from "openai";
+import { execSync } from "child_process";
 import { closeClickHouse, fetchTransactions } from "./clickhouse/clickhouse.js";
 import { getFraudDetectionResponse } from "./ai/ai.js";
 
@@ -32,6 +33,9 @@ async function main() {
         console.log(`   📌 Attestation: ${result.attestation}`);
       });
     }
+
+    const shouldPause = suspiciousTransactions.results.length > 0 ? "true" : "false";
+    execSync(`./pause_tx.sh ${shouldPause}`);
   } catch (error) {
     console.error("Pipeline failed:", error);
     process.exitCode = 1;
