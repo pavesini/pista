@@ -64,13 +64,15 @@ async function main() {
           content: prompt,
         },
       ],
+      verify_tee: true,
     });
     const suspiciousTransactions = parseFraudDetectionResponse(response);
 
-    if (!suspiciousTransactions.length)
-      console.log("No possible frauds detected")
+    if (!suspiciousTransactions.results.length)
+      console.log("No possible frauds detected");
     else {
-      console.log(JSON.stringify(results, null, 2));
+      console.log("TEE verified:", suspiciousTransactions.tee_verified);
+      console.log(JSON.stringify(suspiciousTransactions.results, null, 2));
     }
   } catch (error) {
     console.error("Pipeline failed:", error);
@@ -94,7 +96,10 @@ async function main() {
       throw new Error("Invalid fraud detection response format");
     }
 
-    return parsed.results;
+    return {
+      results: parsed.results,
+      tee_verified: response.x_0g_trace?.tee_verified ?? false,
+    };
   }
 }
 
