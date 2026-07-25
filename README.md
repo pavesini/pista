@@ -91,9 +91,13 @@ See [dedicated README.md](SmartContract/README.md)
 
 ```
 pista/
-  stream/     Substreams package: aggregates each Ethereum block into a
-              FraudData row of fraud-relevant signals, against a local
-              Firehose dev chain
+  Docs/         Other documentation (images and slides)
+  stream/       Substreams package: aggregates each Ethereum block into a
+                FraudData row of fraud-relevant signals, against a local
+                dev chain
+  SmartContract dummy smart contract ( see dedicated README.md)
+  0g/           Clickhouse integration, AI Agent query script
+
 ```
 
 ## End-to-end flow
