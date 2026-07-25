@@ -1,42 +1,54 @@
-import OpenAI from 'openai'
+import "dotenv/config";
+import OpenAI from "openai";
+import { closeClickHouse, fetchTransactions } from "./clickhouse/clickhouse.js";
 
-async function mockGraphqlQuery() {
-  const hasData = Math.random() > 0.5;
+async function main() {
+  try {
+    const transactions = await fetchTransactions();
 
-  if (!hasData) {
-    return null;
-  }
+    if (transactions.length === 0) {
+      console.log("No transactions found");
+      return;
+    }
 
-  return {
-    id: crypto.randomUUID(),
-    type: "NEW_FILE_UPLOADED",
-    source: "mock-graphql",
-    fileId: "walrus-file-123",
-    timestamp: new Date().toISOString()
-  };
-}
+    const prompt = `
+      Act as an AML agent.
 
-function main() {
+      Analyze the following batch of transactions and identify potential fraud,
+      money laundering patterns, or other suspicious activity.
+
+      Return:
+      1. A risk level: low, medium, or high.
+      2. The suspicious transaction IDs.
+      3. A concise explanation.
+      4. Recommended follow-up actions.
+
+      Transactions:
+      ${JSON.stringify(transactions, null, 2)}
+      `;
+
     const client = new OpenAI({
-      baseURL: `${process.env.ZG_SERVICE_URL}/v1/proxy`,
-      apiKey: process.env.ZG_API_SECRET,    // the app-sk-... from step 03
-    })
+      baseURL: process.env.ZG_SERVICE_URL,
+      apiKey: process.env.ZG_API_SECRET,
+    });
 
-    const txs = mockGraphqlQuery()
-
-    const prompt = `\
-    Act as an AML agent, scan this batch of transaction and check if there is a potential fraud.\
-    The transactions starts from here:\
-    ${JSON.stringify(txs)} 
-    `
+    const response = await client.chat.completions.create({
+      model: process.env.ZG_MODEL,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
     
-    const completion = await client.chat.completions.create({
-      model: 'qwen/qwen-2.5-7b-instruct',     // or any model listed on pc.0g.ai
-      messages: [{ role: 'user', content: prompt }],
-    })
-    
-    console.log(completion.choices[0].message.content)
+    console.log(response.choices[0]?.message?.content);
+  } catch (error) {
+    console.error("Pipeline failed:", error);
+    process.exitCode = 1;
+  } finally {
+    await closeClickHouse();
+  }
 }
 
-
-main()
+main();
