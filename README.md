@@ -40,7 +40,7 @@ The data is then fed to an AI agent that evaluates relevant updates against base
 - send an email/alert
 - lock credit card transfers
 
-![Diagram 1](Docs/Diagram_2.png)
+![Diagram 1](docs/Diagram_2.png)
 
 ## Why this matters
 
@@ -82,7 +82,7 @@ The data is then fed to an AI agent that evaluates relevant updates against base
 
 ```
 pista/
-  Docs/            Other documentation (images and slides)
+  docs/            Other documentation (images and slides)
   stream/          Substreams definition 
   SmartContract    dummy smart contract ( see dedicated README.md)
   0g/              AI Agent query script
