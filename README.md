@@ -1,17 +1,37 @@
 # PISTA
-Preventive Investigation System for Transaction Auditing
+_**P**reventive **I**nvestigation **S**ystem for **T**ransaction **A**uditing_
 
 ---
 
-PISTA is an off-chain intelligence layer that monitors smart contract activity and takes on-chain action when risk is detected. It solves the problem that smart contracts operate in isolation without broader context about user behavior, market conditions, or coordinated attacks.  
+PISTA is an off-chain intelligence layer that monitors smart contract activity in near real time and takes on-chain action when risk is detected. It solves the problem that smart contracts operate in isolation without broader context about user behavior, market conditions, or coordinated attacks.  
 
 ## The problem
 
-Smart contracts operate in a vacuum. They can enforce rules about who calls them and when, but they have no awareness of broader context: a user's history across protocols, unusual market conditions, coordinated exploitation patterns, or slow-drain attacks that only become visible when looking at aggregate behavior over time. Encoding complex, evolving detection logic directly in Solidity is prohibitively expensive and rigid  by the time you update the contract, the attack has already moved on.
+Smart contracts operate in a vacuum. They can enforce rules about who calls them and when, but they have no awareness of **broader context**: 
+- a user's history across protocols,
+- unusual market conditions,
+- coordinated exploitation patterns, or 
+- slow-drain attacks that only become visible when looking at aggregate behavior over time. 
+
+
+The pain:
+> Encoding complex, evolving detection logic directly in Solidity 
+is prohibitively expensive and rigid  by the time you update the contract, the attack has already moved on.
+
+## Possible applications
+
+- Eforcing **AML** rules for exchanges
+- Enforce compliance with regulations like **MICAr**
+- Stop novel attacks on protocols and smart contract
+- Outsource complex logic that might need to adapt o change over time to an off-chain trusted ruleset
+- Leverage **AI monitoring** on contract/user behaveyour
+
 
 ## How PISTA works
 
 PISTA subscribes to smart contract events across any number of protocols, feeds them into an AI/rule engine that evaluates behavior against baselines and adaptive policies, and when conditions warrant takes direct on-chain action: pausing a contract, blacklisting an address, triggering a fund transfer, or any other state change the contract supports.
+
+![Diagram 1](Docs/Diagram_1.png)
 
 ## Why this matters
 
@@ -25,6 +45,20 @@ PISTA subscribes to smart contract events across any number of protocols, feeds 
 
 
 
+## Tools:
+
+- A **Demo smart contract** is supplied for your convenience. It's just a contract that emits events and can be stopped by admin 
+
+- **The Graph** is used to pull/query events emitted by the Demo smart Contract and feed them to the filtering agent
+
+- 
+
+
+## Setup
+
+TBD
+
+
 
 ---
 
@@ -32,3 +66,12 @@ PISTA subscribes to smart contract events across any number of protocols, feeds 
 
 - **Demo Smart contract**: a dummy mast contract is used for the demo. It simply allows EOA users to increment a counter unless some external adminitrator stops the contract.
 See [dedicated README.md](SmartContract/README.md)
+
+
+## Further/Future developemet
+
+Due to time constraints the demo is done on a simple contract, but further developement might include:
+- monitoring of complex contracts
+- monitoring of stablecoin contracts (USDC, USDT EURC...)
+- monitoring of assets across multiple chains
+- monitoring cross-chain bridges
