@@ -16,7 +16,8 @@ target
 # rustc will dump stack traces when hitting an internal compiler error to PWD
 rustc-ice-*.txt
 
-
+# node
 node_modules
+.env
 .direnv
 .npm-global
