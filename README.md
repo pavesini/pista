@@ -29,9 +29,21 @@ is prohibitively expensive and rigid  by the time you update the contract, the a
 
 ## How PISTA works
 
-PISTA subscribes to smart contract events across any number of protocols, feeds them into an AI/rule engine that evaluates behavior against baselines and adaptive policies, and when conditions warrant takes direct on-chain action: pausing a contract, blacklisting an address, triggering a fund transfer, or any other state change the contract supports.
+PISTA subscribes to smart contract events across any number of protocols and/or general blockchain data.
+A **substream** (developed via **substream-devs** skill) collects all blocks, parses them and stores relevant data into **Clickhouse** database.
 
-![Diagram 1](Docs/Diagram_1.png)
+
+The data is then fed to an AI agent that evaluates relevant updates against baselines and adaptive policies. Should a suspicious activity be detected, response actions are triggered. Those may include both on-chain and off-chain actions like:
+- pausing a contract (or any other state change the contract supports) 
+- blacklisting an address
+- transfer funds
+- trade funds on a DEX
+- send an email/alert
+- lock credit card transfers
+
+etcetera.
+
+![Diagram 1](Docs/Diagram_2.png)
 
 ## Why this matters
 
@@ -45,14 +57,30 @@ PISTA subscribes to smart contract events across any number of protocols, feeds 
 
 
 
-## Tools:
+## Tools and componets used:
 
-- A **Demo smart contract** is supplied for your convenience. It's just a contract that emits events and can be stopped by admin 
 
-- **The Graph** is used to pull/query events emitted by the Demo smart Contract and feed them to the filtering agent
+- **The Graph** is used to pull/query data from the blockchain providing:
+    - high parallelism
+    - high troutghtput
+    - flexibility
+    - reduced cost
+    We pull data using a substream and then parsing/filtering the data
 
-- 
+- **Clickhouse database** is an open-source database used to store the data coming from the substream. It's made for Agents/LLM and real time analytics and can be queried in plain SQL.
 
+- A **Demo smart contract** is supplied to showcase the possibility of sending a reaction on-chain to a smart contract. See [dedicated README.md](SmartContract/README.md)
+
+
+## AI / Models used during development
+
+- **Opencode+Claude.ai**:
+    - jot the README.md files
+    - demo smart contract code comments
+    - demo smart contract test coverage
+    - protobuff definition
+- The Graph's **substream-devs** skill
+    - substream creation
 
 ## Setup
 
@@ -62,16 +90,12 @@ TBD
 
 ---
 
-## Further documentation
-
-- **Demo Smart contract**: a dummy mast contract is used for the demo. It simply allows EOA users to increment a counter unless some external adminitrator stops the contract.
-See [dedicated README.md](SmartContract/README.md)
-
 
 ## Further/Future developemet
 
 Due to time constraints the demo is done on a simple contract, but further developement might include:
 - monitoring of complex contracts
 - monitoring of stablecoin contracts (USDC, USDT EURC...)
+- monitoring of all stablecoins pegged to the same fiat asset
 - monitoring of assets across multiple chains
 - monitoring cross-chain bridges
