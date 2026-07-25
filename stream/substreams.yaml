@@ -1,0 +1,30 @@
+specVersion: v0.1.0
+package:
+  name: pista_wallet_transactions
+  version: v0.1.0
+  url: https://github.com/antonio-luca/pista-stream
+  description: Filters Ethereum transactions where tx.from matches a runtime-provided address, against a local Firehose dev chain.
+
+network: mainnet
+
+protobuf:
+  files:
+    - transactions.proto
+  importPaths:
+    - ./proto
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/pista_wallet_transactions.wasm
+
+modules:
+  - name: map_transactions_from
+    kind: map
+    initialBlock: 0
+    inputs:
+      - params: string
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:pista.transactions.v1.Transactions
+    doc: "Emits every transaction where tx.from == the address passed via -p"
