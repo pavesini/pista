@@ -9,11 +9,9 @@ async function main() {
     const transactions = await fetchTransactions();
 
     if (transactions.length === 0) {
-      console.log("No transactions found");
+      console.log("📭 No transactions found");
       return;
     }
-
-    console.log(`Found ${transactions.length} transactions!`);
 
     const fraudDetectionResponse = await getFraudDetectionResponse(transactions);
 
