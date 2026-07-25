@@ -15,10 +15,6 @@ function getTableName() {
     throw new Error("CLICKHOUSE_TABLE is not configured");
   }
 
-  if (!/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$/.test(table)) {
-    throw new Error("CLICKHOUSE_TABLE contains an invalid identifier");
-  }
-
   return table;
 }
 
@@ -27,8 +23,8 @@ export async function fetchTransactions(limit = 100) {
     query: `
       SELECT *
       FROM ${getTableName()}
-      ORDER BY timestamp DESC
-      LIMIT {limit:UInt32}
+      ORDER BY block_timestamp DESC
+      LIMIT ${process.env.TRANSACTION_LIMIT}
     `,
     query_params: { limit },
     format: "JSONEachRow",

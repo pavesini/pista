@@ -11,17 +11,41 @@ async function main() {
       return;
     }
 
+    console.log(`Found ${transactions.length} transactions!`);
+
     const prompt = `
-      Act as an AML agent.
+      Act as an AML and fraud detection agent.
 
-      Analyze the following batch of transactions and identify potential fraud,
-      money laundering patterns, or other suspicious activity.
+      Analyze the following transactions and identify only those that may involve:
+      - fraud;
+      - money laundering;
+      - other suspicious activity.
 
-      Return:
-      1. A risk level: low, medium, or high.
-      2. The suspicious transaction IDs.
-      3. A concise explanation.
-      4. Recommended follow-up actions.
+      Return ONLY valid JSON. Do not include Markdown, comments, or additional text.
+
+      Use exactly this structure:
+
+      {
+        "results": [
+          {
+            "transaction_ids": ["string"],
+            "level": "low",
+            "explanation": "two or three words",
+          }
+        ]
+      }
+
+      Rules:
+      - "transaction_ids" must contain the suspicious transaction IDs.
+      - "level" must be exactly one of: "low", "medium", "high".
+      - "explanation" must contain exactly two or three words.
+      - "attestation" must be exactly one of:
+        "potential_fraud",
+        "potential_money_laundering",
+        "other_suspicious_activity".
+      - Group transactions together when they share the same suspicious pattern.
+      - If no suspicious activity is detected, return:
+        { "results": [] }
 
       Transactions:
       ${JSON.stringify(transactions, null, 2)}
@@ -41,13 +65,36 @@ async function main() {
         },
       ],
     });
-    
-    console.log(response.choices[0]?.message?.content);
+    const suspiciousTransactions = parseFraudDetectionResponse(response);
+
+    if (!suspiciousTransactions.length)
+      console.log("No possible frauds detected")
+    else {
+      console.log(JSON.stringify(results, null, 2));
+    }
   } catch (error) {
     console.error("Pipeline failed:", error);
     process.exitCode = 1;
   } finally {
     await closeClickHouse();
+  }
+
+  function parseFraudDetectionResponse(response) {
+    const content = response.choices[0].message.content;
+
+    const cleanedContent = content
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    const parsed = JSON.parse(cleanedContent);
+
+    if (!parsed || !Array.isArray(parsed.results)) {
+      throw new Error("Invalid fraud detection response format");
+    }
+
+    return parsed.results;
   }
 }
 

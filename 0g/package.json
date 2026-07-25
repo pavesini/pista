@@ -4,7 +4,9 @@
   "description": "TEE script that cals 0g AI model",
   "main": "index.js",
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "poll": "node index.js"
+  },
   "author": "Conio",
   "license": "ISC",
   "dependencies": {
