@@ -11,14 +11,7 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
-            nodejs_22          # provides node, npm and npx
-            nodePackages.prettier
-            nodePackages.eslint
-            nodePackages.typescript
-            nodePackages.typescript-language-server
           ];
-          # Keeps `npm install -g` out of the read-only Nix store
-          NPM_CONFIG_PREFIX = "./.npm-global";
         };
       });
 }
