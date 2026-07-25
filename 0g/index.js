@@ -32,7 +32,7 @@ async function main() {
       });
     }
 
-    const shouldPause = suspiciousTransactions.results.length > 0 ? "true" : "false";
+    const shouldPause = fraudDetectionResponse.results.length > 0 ? "true" : "false";
     execSync(`./pause_tx.sh ${shouldPause}`);
   } catch (error) {
     console.error("Pipeline failed:", error);
