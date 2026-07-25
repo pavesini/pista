@@ -104,6 +104,13 @@
   .app-panel{background:var(--surface); display:flex; flex-direction:column; min-height:0;}
   .live-rows-scroll{flex:1; overflow-y:auto; min-height:0;}
 
+  /* aggregate panel shows every fraud_data column, so it gets its own
+     horizontal scroller — header and rows scroll together (same inner
+     width), while the row list itself scrolls vertically inside that. */
+  .agg-scroll{flex:1; overflow-x:auto; overflow-y:hidden; min-height:0;}
+  .agg-inner{height:100%; min-width:1100px; display:flex; flex-direction:column;}
+  .live-row.agg-row{grid-template-columns:120px 58px 54px 66px 58px 92px 68px 56px 82px 62px 82px 68px 68px;}
+
   @media (max-width:880px){
     body{overflow:auto;}
     .app-shell{height:auto; min-height:100%;}
@@ -191,10 +198,18 @@
 
     <section class="app-panel">
       <div class="live-panel-head"><span>fraud_data aggregate</span><span class="live-dot" id="chDot"></span></div>
-      <div class="live-table">
-        <div class="live-row live-row-head"><span>block</span><span>txs</span><span>gas util</span><span>senders</span><span>stablecoin</span></div>
+      <div class="agg-scroll">
+        <div class="agg-inner">
+          <div class="live-table">
+            <div class="live-row live-row-head agg-row">
+              <span>block</span><span>gas%</span><span>txs</span><span>senders</span><span>recv</span>
+              <span>value (ETH)</span><span>zero-val</span><span>dust</span><span>stable $</span><span>failed</span>
+              <span>rev senders</span><span>fee p50</span><span>fee max</span>
+            </div>
+          </div>
+          <div class="live-rows-scroll"><div class="live-rows" id="aggRows"></div></div>
+        </div>
       </div>
-      <div class="live-rows-scroll"><div class="live-rows" id="aggRows"></div></div>
       <div class="live-note" id="chNote" hidden></div>
     </section>
   </main>
@@ -308,7 +323,7 @@
     var key = String(n);
     if(aggElements[key]) return;
     var row = document.createElement('div');
-    row.className = 'live-row agg-pending';
+    row.className = 'live-row agg-row agg-pending';
     row.setAttribute('data-key', key);
     row.innerHTML = '<span>#'+n.toLocaleString()+'</span><span class="pending-label">aggregating…</span>';
     aggRows.insertBefore(row, aggRows.firstChild);
@@ -317,22 +332,38 @@
     trimRows(aggRows, aggElements);
   }
 
+  function weiToEth(weiStr){
+    try{
+      var wei = BigInt(weiStr || '0');
+      var milliEth = wei / 1000000000000000n; // integer division, BigInt-safe
+      return (Number(milliEth) / 1000).toFixed(3);
+    } catch(e){ return '0.000'; }
+  }
+
   function upsertAggRow(data){
     var key = String(data.block_number);
     aggregatesByBlock[key] = data;
     var html =
       '<span>#'+Number(data.block_number).toLocaleString()+'</span>' +
-      '<span>'+data.total_transactions+'</span>' +
       '<span>'+fmtPct(data.gas_utilization)+'</span>' +
+      '<span>'+data.total_transactions+'</span>' +
       '<span>'+data.unique_senders+'</span>' +
-      '<span>$'+Number(data.stablecoin_volume_usd || 0).toLocaleString()+'</span>';
+      '<span>'+data.unique_receivers+'</span>' +
+      '<span>'+weiToEth(data.total_value_wei)+'</span>' +
+      '<span>'+data.zero_value_tx_count+'</span>' +
+      '<span>'+data.dust_tx_count+'</span>' +
+      '<span>$'+Number(data.stablecoin_volume_usd || 0).toLocaleString()+'</span>' +
+      '<span>'+data.failed_transactions+'</span>' +
+      '<span>'+data.top_reverting_distinct_senders+'</span>' +
+      '<span>'+Number(data.priority_fee_p50_gwei || 0).toFixed(1)+'</span>' +
+      '<span>'+Number(data.priority_fee_max_gwei || 0).toFixed(1)+'</span>';
     var el = aggElements[key];
     if(el){
       el.classList.remove('agg-pending');
       el.innerHTML = html;
     } else {
       el = document.createElement('div');
-      el.className = 'live-row';
+      el.className = 'live-row agg-row';
       el.setAttribute('data-key', key);
       el.innerHTML = html;
       insertSorted(aggRows, el, key);
