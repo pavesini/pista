@@ -3,7 +3,7 @@ _**P**reventive **I**nvestigation **S**ystem for **T**ransaction **A**uditing_
 
 ---
 
-PISTA is an off-chain intelligence layer that monitors smart contract activity in near real time and takes on-chain action when risk is detected. It solves the problem that smart contracts operate in isolation without broader context about user behavior, market conditions, or coordinated attacks.  
+PISTA is an off-chain intelligence layer that monitors blockchain activities in near real time and takes on-chain and off-chain actions when risk is detected. It solves the problem that smart contracts operate in isolation without broader context about user behavior, market conditions, or coordinated attacks.
 
 ## The problem
 
@@ -20,17 +20,16 @@ is prohibitively expensive and rigid  by the time you update the contract, the a
 
 ## Possible applications
 
-- Eforcing **AML** rules for exchanges
-- Enforce compliance with regulations like **MICAr**
 - Stop novel attacks on protocols and smart contract
 - Outsource complex logic that might need to adapt o change over time to an off-chain trusted ruleset
 - Leverage **AI monitoring** on contract/user behaveyour
+- Eforcing **AML** rules for exchanges
 
 
 ## How PISTA works
 
-PISTA subscribes to smart contract events across any number of protocols and/or general blockchain data.
-A **substream** (developed via **substream-devs** skill) collects all blocks, parses them and stores relevant data into **Clickhouse** database.
+PISTA subscribes to blockchain or smart contract events across any number of protocols.
+A **substream** (developed with the help of **substream-devs** skill) collects all blocks, parses, transform and stores relevant data into **Clickhouse** database.
 
 
 The data is then fed to an AI agent that evaluates relevant updates against baselines and adaptive policies. Should a suspicious activity be detected, response actions are triggered. Those may include both on-chain and off-chain actions like:
@@ -41,9 +40,7 @@ The data is then fed to an AI agent that evaluates relevant updates against base
 - send an email/alert
 - lock credit card transfers
 
-etcetera.
-
-![Diagram 1](Docs/Diagram_2.png)
+![Diagram 1](docs/Diagram_2.png)
 
 ## Why this matters
 
@@ -55,32 +52,26 @@ etcetera.
 - **Near real-time response.** Events are processed as they land. Between detection and action, the window is narrow, not the days or weeks it takes for governance proposals or manual intervention.
 
 
-- **Demo Smart contract**: a dummy mast contract is used for the demo. It simply allows EOA users to increment a counter unless some external adminitrator stops the contract.
-See [dedicated README.md](SmartContract/README.md)
-
-
 ## Tools and componets used:
 
-
-- **The Graph** is used to pull/query data from the blockchain providing:
+- **The Graph** is used to stream, transform and aggregate data from the blockchain providing:
     - high parallelism
     - high troutghtput
+	- wide amount of data
     - flexibility
     - reduced cost
-    We pull data using a substream and then parsing/filtering the data
+
+- The Graph Market **Hosted Services** is used to deploy the substream
 
 - **Clickhouse database** is an open-source database used to store the data coming from the substream. It's made for Agents/LLM and real time analytics and can be queried in plain SQL.
-
-- A **Demo smart contract** is supplied to showcase the possibility of sending a reaction on-chain to a smart contract. See [dedicated README.md](SmartContract/README.md)
 
 
 ## AI / Models used during development
 
 - **Opencode+Claude.ai**:
-    - jot the README.md files
-    - demo smart contract code comments
-    - demo smart contract test coverage
-    - protobuff definition
+    - documentation
+	- smart contract
+    - protobuf definition
 - The Graph's **substream-devs** skill 
     - see https://thegraph.com/docs/en/substreams/tooling/skills/
     - substream creation
@@ -91,29 +82,12 @@ See [dedicated README.md](SmartContract/README.md)
 
 ```
 pista/
-  Docs/         Other documentation (images and slides)
-  stream/       Substreams package: aggregates each Ethereum block into a
-                FraudData row of fraud-relevant signals, against a local
-                dev chain
-  SmartContract dummy smart contract ( see dedicated README.md)
-  0g/           Clickhouse integration, AI Agent query script
+  docs/            Other documentation (images and slides)
+  stream/          Substreams definition 
+  SmartContract    dummy smart contract ( see dedicated README.md)
+  0g/              AI Agent query script
 
 ```
-
-## End-to-end flow
-
-```
-docker-compose (local geth --dev + Firehose/Substreams tier1 + ClickHouse)
-        │  Ethereum blocks
-        ▼
-substreams-sink-sql from-proto  (stream/, module: extract_fraud_relevant_data)
-        │  one FraudData row per block
-        ▼
-ClickHouse (fraud_data table)
-```
-
-Full detail on the module lives in `stream/README.md`. What follows is the
-complete run sequence, start to finish.
 
 ### 1. Bring up the local dev chain and ClickHouse
 
@@ -127,11 +101,12 @@ docker compose ps   # wait until ethereum-dev-node AND clickhouse show "healthy"
 the node's auto-unlocked dev account to 10 well-known Hardhat/Anvil addresses
 — useful for giving the smoke test some non-trivial transactions to see.
 
-### 2. Build the substream
+### 2. Build and publish the substream
 
 ```bash
 # still in stream/
-substreams build   # use v1.17.11 of the substreams CLI — see stream/README.md
+substreams build
+substreams publish
 ```
 
 ### 3. Get the `substreams-sink-sql` CLI
@@ -261,10 +236,6 @@ Notes:
 
 ## Further/Future developemet
 
-Due to time constraints the demo is done on a simple contract, but further developement might include:
-- monitoring of complex contracts
-- monitoring of stablecoin contracts (USDC, USDT EURC...)
-- monitoring of all stablecoins pegged to the same fiat asset
-- monitoring of assets across multiple chains
-- monitoring cross-chain bridges
-
+- Extend data that might be useful for fraud detection
+- Implement on-chain ruleset
+- Run off-chain ruleset inside a TEE
