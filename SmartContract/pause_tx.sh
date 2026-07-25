@@ -8,6 +8,10 @@
 ################################################################################
 
 
+## Forge install
+# curl -L https://getfoundry.sh/install | bash
+# foundryup
+
 PAUSE="$1"
 
 # 2. Convert input to lowercase for case-insensitive checking (requires Bash 4.0+)

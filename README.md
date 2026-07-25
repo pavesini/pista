@@ -59,7 +59,31 @@ etcetera.
 See [dedicated README.md](SmartContract/README.md)
 
 
+## Tools and componets used:
 
+
+- **The Graph** is used to pull/query data from the blockchain providing:
+    - high parallelism
+    - high troutghtput
+    - flexibility
+    - reduced cost
+    We pull data using a substream and then parsing/filtering the data
+
+- **Clickhouse database** is an open-source database used to store the data coming from the substream. It's made for Agents/LLM and real time analytics and can be queried in plain SQL.
+
+- A **Demo smart contract** is supplied to showcase the possibility of sending a reaction on-chain to a smart contract. See [dedicated README.md](SmartContract/README.md)
+
+
+## AI / Models used during development
+
+- **Opencode+Claude.ai**:
+    - jot the README.md files
+    - demo smart contract code comments
+    - demo smart contract test coverage
+    - protobuff definition
+- The Graph's **substream-devs** skill 
+    - see https://thegraph.com/docs/en/substreams/tooling/skills/
+    - substream creation
 
 # Preventive Investigation System for Transaction Auditing
 
