@@ -1,17 +1,49 @@
 # PISTA
-Preventive Investigation System for Transaction Auditing
+_**P**reventive **I**nvestigation **S**ystem for **T**ransaction **A**uditing_
 
 ---
 
-PISTA is an off-chain intelligence layer that monitors smart contract activity and takes on-chain action when risk is detected. It solves the problem that smart contracts operate in isolation without broader context about user behavior, market conditions, or coordinated attacks.  
+PISTA is an off-chain intelligence layer that monitors smart contract activity in near real time and takes on-chain action when risk is detected. It solves the problem that smart contracts operate in isolation without broader context about user behavior, market conditions, or coordinated attacks.  
 
 ## The problem
 
-Smart contracts operate in a vacuum. They can enforce rules about who calls them and when, but they have no awareness of broader context: a user's history across protocols, unusual market conditions, coordinated exploitation patterns, or slow-drain attacks that only become visible when looking at aggregate behavior over time. Encoding complex, evolving detection logic directly in Solidity is prohibitively expensive and rigid  by the time you update the contract, the attack has already moved on.
+Smart contracts operate in a vacuum. They can enforce rules about who calls them and when, but they have no awareness of **broader context**: 
+- a user's history across protocols,
+- unusual market conditions,
+- coordinated exploitation patterns, or 
+- slow-drain attacks that only become visible when looking at aggregate behavior over time. 
+
+
+The pain:
+> Encoding complex, evolving detection logic directly in Solidity 
+is prohibitively expensive and rigid  by the time you update the contract, the attack has already moved on.
+
+## Possible applications
+
+- Eforcing **AML** rules for exchanges
+- Enforce compliance with regulations like **MICAr**
+- Stop novel attacks on protocols and smart contract
+- Outsource complex logic that might need to adapt o change over time to an off-chain trusted ruleset
+- Leverage **AI monitoring** on contract/user behaveyour
+
 
 ## How PISTA works
 
-PISTA subscribes to smart contract events across any number of protocols, feeds them into an AI/rule engine that evaluates behavior against baselines and adaptive policies, and when conditions warrant takes direct on-chain action: pausing a contract, blacklisting an address, triggering a fund transfer, or any other state change the contract supports.
+PISTA subscribes to smart contract events across any number of protocols and/or general blockchain data.
+A **substream** (developed via **substream-devs** skill) collects all blocks, parses them and stores relevant data into **Clickhouse** database.
+
+
+The data is then fed to an AI agent that evaluates relevant updates against baselines and adaptive policies. Should a suspicious activity be detected, response actions are triggered. Those may include both on-chain and off-chain actions like:
+- pausing a contract (or any other state change the contract supports) 
+- blacklisting an address
+- transfer funds
+- trade funds on a DEX
+- send an email/alert
+- lock credit card transfers
+
+etcetera.
+
+![Diagram 1](Docs/Diagram_2.png)
 
 ## Why this matters
 
@@ -22,12 +54,6 @@ PISTA subscribes to smart contract events across any number of protocols, feeds 
 - **Cross-protocol visibility.** A single PISTA instance can monitor activity across multiple contracts and protocols simultaneously, correlating signals that no individual contract could see on its own.
 - **Near real-time response.** Events are processed as they land. Between detection and action, the window is narrow, not the days or weeks it takes for governance proposals or manual intervention.
 
-
-
-
----
-
-## Further documentation
 
 - **Demo Smart contract**: a dummy mast contract is used for the demo. It simply allows EOA users to increment a counter unless some external adminitrator stops the contract.
 See [dedicated README.md](SmartContract/README.md)
@@ -204,3 +230,13 @@ Notes:
 | Start block | `0` (tiny dev chain) | a recent block, not genesis |
 | `stablecoin_volume_usd` | always `0` (no stablecoins deployed) | non-zero when the allowlisted contracts see `Transfer` activity |
 | ClickHouse sink | identical | identical |
+
+## Further/Future developemet
+
+Due to time constraints the demo is done on a simple contract, but further developement might include:
+- monitoring of complex contracts
+- monitoring of stablecoin contracts (USDC, USDT EURC...)
+- monitoring of all stablecoins pegged to the same fiat asset
+- monitoring of assets across multiple chains
+- monitoring cross-chain bridges
+

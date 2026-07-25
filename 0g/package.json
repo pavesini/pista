@@ -1,0 +1,13 @@
+{
+  "name": "0g",
+  "version": "1.0.0",
+  "description": "TEE script that cals 0g AI model",
+  "main": "index.js",
+  "scripts": {},
+  "author": "Conio",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "openai": "^6.49.0"
+  }
+}
