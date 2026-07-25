@@ -1,13 +1,32 @@
-# PISTA Contracts
+# Dummy smart contract
 
-
-----
 
 ## Counter.sol contract
 
-`Counter.sol` is a proof-of-concept contract that demonstrates how PISTA can control on-chain activity based on off-chain decisions.
+The Counter.sol contract is a minimal proof-of-concept showing PISTA's core capability: controlling on-chain activity based on off-chain decisions.
 
-The contract is a simple counter with two state-mutating functions:
+Key demonstration points:
+
+
+```
+1. Simple state changes: increment() (public) and setNumber() (admin-only) both emit Fired events that PISTA can monitor
+2. Pause mechanism: The Paused boolean allows PISTA to halt all non-admin functions when off-chain analysis detects risk
+3. Admin governance: PISTA can manage admins via authorize() to control who can pause/unpause
+4. Event-driven monitoring: All state changes emit events that PISTA subscribes to for analysis
+```
+
+ The demo flow:
+```
+- PISTA monitors Fired events from Counter.sol
+- Off-chain AI/rule engine analyzes patterns (e.g., rate limits, unusual activity)
+- When risk is detected, PISTA calls pause(true) on-chain to halt the contract
+- When risk passes, PISTA calls pause(false) to resume
+```
+
+This shows PISTA's value proposition: complex detection logic (sliding time windows, address policies, cross-protocol correlation) happens off-chain, while only the final action (pause/unpause) incurs gas costs.
+
+
+`Counter.sol` is a simple counter with two state-mutating functions:
 
 - `increment()` — callable by anyone, increments the counter by 1.
 - `setNumber(uint256)` — admin-only, sets the counter to an arbitrary value.
