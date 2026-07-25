@@ -1,6 +1,7 @@
 import "dotenv/config";
 import OpenAI from "openai";
 import { closeClickHouse, fetchTransactions } from "./clickhouse/clickhouse.js";
+import { getFraudDetectionResponse } from "./ai/ai.js";
 
 async function main() {
   try {
@@ -13,93 +14,29 @@ async function main() {
 
     console.log(`Found ${transactions.length} transactions!`);
 
-    const prompt = `
-      Act as an AML and fraud detection agent.
+    const fraudDetectionResponse = await getFraudDetectionResponse(transactions);
 
-      Analyze the following transactions and identify only those that may involve:
-      - fraud;
-      - money laundering;
-      - other suspicious activity.
+    if (!fraudDetectionResponse.results.length) {
+      console.log("✅ No possible frauds detected");
+    } else {
+      console.log("🚨 Possible fraud detected!");
+      console.log(
+        `🔐 TEE verified: ${fraudDetectionResponse.tee_verified ? "✅ Yes" : "❌ No"}`
+      );
 
-      Return ONLY valid JSON. Do not include Markdown, comments, or additional text.
-
-      Use exactly this structure:
-
-      {
-        "results": [
-          {
-            "transaction_ids": ["string"],
-            "level": "low",
-            "explanation": "two or three words",
-          }
-        ]
-      }
-
-      Rules:
-      - "transaction_ids" must contain the suspicious transaction IDs.
-      - "level" must be exactly one of: "low", "medium", "high".
-      - "explanation" must contain exactly two or three words.
-      - "attestation" must be exactly one of:
-        "potential_fraud",
-        "potential_money_laundering",
-        "other_suspicious_activity".
-      - Group transactions together when they share the same suspicious pattern.
-      - If no suspicious activity is detected, return:
-        { "results": [] }
-
-      Transactions:
-      ${JSON.stringify(transactions, null, 2)}
-      `;
-
-    const client = new OpenAI({
-      baseURL: process.env.ZG_SERVICE_URL,
-      apiKey: process.env.ZG_API_SECRET,
-    });
-
-    const response = await client.chat.completions.create({
-      model: process.env.ZG_MODEL,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      verify_tee: true,
-    });
-    const suspiciousTransactions = parseFraudDetectionResponse(response);
-
-    if (!suspiciousTransactions.results.length)
-      console.log("No possible frauds detected");
-    else {
-      console.log("TEE verified:", suspiciousTransactions.tee_verified);
-      console.log(JSON.stringify(suspiciousTransactions.results, null, 2));
+      fraudDetectionResponse.results.forEach((result, index) => {
+        console.log(`\n🔎 Suspicious result #${index + 1}`);
+        console.log(`   🆔 Transaction IDs: ${result.transaction_ids.join(", ")}`);
+        console.log(`   ⚠️  Risk level: ${result.level.toUpperCase()}`);
+        console.log(`   💬 Explanation: ${result.explanation}`);
+        console.log(`   📌 Attestation: ${result.attestation}`);
+      });
     }
   } catch (error) {
     console.error("Pipeline failed:", error);
     process.exitCode = 1;
   } finally {
     await closeClickHouse();
-  }
-
-  function parseFraudDetectionResponse(response) {
-    const content = response.choices[0].message.content;
-
-    const cleanedContent = content
-      .trim()
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    const parsed = JSON.parse(cleanedContent);
-
-    if (!parsed || !Array.isArray(parsed.results)) {
-      throw new Error("Invalid fraud detection response format");
-    }
-
-    return {
-      results: parsed.results,
-      tee_verified: response.x_0g_trace?.tee_verified ?? false,
-    };
   }
 }
 
