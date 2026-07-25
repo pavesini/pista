@@ -6,9 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use pb::FraudData;
 use substreams::errors::Error;
-use substreams::pb::substreams::store_delta::Operation as DeltaOperation;
 use substreams::scalar::BigInt;
-use substreams::store::{DeltaInt64, Deltas, StoreNew, StoreSet, StoreSetInt64};
 use substreams::Hex;
 use substreams_ethereum::pb::eth::v2 as eth;
 use substreams_ethereum::pb::eth::v2::transaction_trace::Type as TrxType;
@@ -31,32 +29,6 @@ const STABLECOINS: &[(&str, u64)] = &[
 
 fn hex0x(bytes: &[u8]) -> String {
     format!("0x{}", Hex::encode(bytes))
-}
-
-#[substreams::handlers::store]
-fn store_block_interval(block: eth::Block, store: StoreSetInt64) {
-    let timestamp = block
-        .header
-        .as_ref()
-        .and_then(|h| h.timestamp.as_ref())
-        .map(|t| t.seconds)
-        .unwrap_or_default();
-    store.set(0, "timestamp", &timestamp);
-}
-
-fn block_interval_seconds(deltas: &Deltas<DeltaInt64>) -> i32 {
-    deltas
-        .deltas
-        .iter()
-        .find(|d| d.key == "timestamp")
-        .map(|d| {
-            if d.operation == DeltaOperation::Create {
-                0
-            } else {
-                (d.new_value - d.old_value) as i32
-            }
-        })
-        .unwrap_or(0)
 }
 
 fn effective_priority_fee_gwei(trx: &eth::TransactionTrace, base_fee_per_gas: &BigInt) -> Option<f64> {
@@ -91,10 +63,7 @@ fn stablecoin_volume_usd(txs: &[&eth::TransactionTrace]) -> f64 {
 }
 
 #[substreams::handlers::map]
-fn extract_fraud_relevant_data(
-    block: eth::Block,
-    interval_deltas: Deltas<DeltaInt64>,
-) -> Result<FraudData, Error> {
+fn extract_fraud_relevant_data(block: eth::Block) -> Result<FraudData, Error> {
     let block_timestamp = block
         .header
         .as_ref()
@@ -210,7 +179,6 @@ fn extract_fraud_relevant_data(
     Ok(FraudData {
         block_number: block.number,
         block_timestamp,
-        block_interval_seconds: block_interval_seconds(&interval_deltas),
         gas_utilization,
         total_transactions: txs.len() as u64,
         unique_senders: senders.len() as u64,

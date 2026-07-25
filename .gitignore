@@ -21,4 +21,5 @@ node_modules
 .env
 .direnv
 .npm-global
+stream/.substreams.env
 

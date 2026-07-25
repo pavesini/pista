@@ -162,7 +162,7 @@ immediately).
 
 ```bash
 docker compose exec clickhouse clickhouse-client --password dev --query \
-  "SELECT block_number, total_transactions, contract_creation_count, block_interval_seconds FROM fraud_data ORDER BY block_number DESC LIMIT 10 FORMAT PrettyCompact"
+  "SELECT block_number, total_transactions, contract_creation_count FROM fraud_data ORDER BY block_number DESC LIMIT 10 FORMAT PrettyCompact"
 ```
 
 ### Tear down

@@ -12,9 +12,10 @@ message FraudData {
     }
   };
 
+  reserved 3;
+
   uint64 block_number                      = 1 [(schema.field) = { primary_key: true }];
   uint64 block_timestamp                   = 2;
-  int32  block_interval_seconds            = 3;
   double gas_utilization                   = 4;
 
   uint64 total_transactions                = 5;

@@ -7,12 +7,8 @@ ClickHouse.
 
 ## Overview
 
-A Substreams pipeline with two modules: a small `store` module that tracks the
-previous block's timestamp (needed to compute the interval between blocks),
-and a `map` module that scans every transaction in the block and emits one
-`pista.aggregate.v1.FraudData` row per block. Built against the local
-Firehose/Substreams dev chain started by `docker-compose.yml` in this repo
-(`geth --dev`, tier1 gRPC on `localhost:9000`). Output is persisted to
+A single Substreams `map` module that scans every transaction in the block and
+emits one `pista.aggregate.v1.FraudData` row per block. Output is persisted to
 ClickHouse via `substreams-sink-sql`'s `from-proto` mode — no `schema.sql` to
 maintain, the table DDL is generated from the annotations in
 `proto/aggregate.proto`.
@@ -21,7 +17,6 @@ maintain, the table DDL is generated from the annotations in
 
 | Module | Kind | Output | Description |
 |---|---|---|---|
-| `store_block_interval` | store | `int64` | Tracks the current block's timestamp so the next block can compute the gap between them |
 | `extract_fraud_relevant_data` | map | `pista.aggregate.v1.FraudData` | Emits one fraud-signal aggregate row per block |
 
 ## Prerequisites
@@ -110,9 +105,7 @@ These are the exact steps used to verify the pipeline against the local dev chai
 
    Expect `total_transactions`/`unique_receivers` to jump on the block(s)
    containing the `fund-address` transfers (10 recipients, one `fund-address`
-   run per `docker compose up`), and `block_interval_seconds` to read `0` on
-   the very first row and ~1s afterward (the dev chain mines with
-   `--dev.period=1`).
+   run per `docker compose up`).
 
 5. **Tear down** when done: `docker compose down` (add `-v` to also wipe the
    dev chain's state and the ClickHouse data volume, so the next run starts

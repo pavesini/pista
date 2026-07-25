@@ -1,7 +1,7 @@
 specVersion: v0.1.0
 package:
   name: pista_wallet_transactions_sepolia
-  version: v0.1.0
+  version: v0.1.1
   url: https://github.com/pavesini/pista
   description: Map Eth Blocks into per-block FraudData aggregates
 
@@ -24,21 +24,11 @@ binaries:
     file: ./target/wasm32-unknown-unknown/release/pista_wallet_transactions.wasm
 
 modules:
-  - name: store_block_interval
-    kind: store
-    initialBlock: 0
-    updatePolicy: set
-    valueType: int64
-    inputs:
-      - source: sf.ethereum.type.v2.Block
-
   - name: extract_fraud_relevant_data
     kind: map
-    initialBlock: 0
+    initialBlock: 11348562
     inputs:
       - source: sf.ethereum.type.v2.Block
-      - store: store_block_interval
-        mode: deltas
     output:
       type: proto:pista.aggregate.v1.FraudData
 
